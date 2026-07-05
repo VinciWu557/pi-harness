@@ -4,13 +4,26 @@
   "description": "个人 pi 自定义插件集合 — 工具、权限控制、命令、技能",
   "keywords": ["pi-package"],
   "license": "MIT",
+  "author": "VinciWu557",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VinciWu557/pi-harness"
+  },
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "themes",
+    "README.md",
+    "package.json"
+  ],
   "pi": {
     "extensions": ["./extensions"],
     "skills": ["./skills"],
     "prompts": ["./prompts"],
     "themes": ["./themes"]
   },
-  "devDependencies": {
+  "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-ai": "*",
     "typebox": "*"

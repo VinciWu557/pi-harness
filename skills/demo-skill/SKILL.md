@@ -1,3 +1,8 @@
+---
+name: demo-skill
+description: 演示技能，展示 pi skill 的基本结构和使用方式。当用户提到"演示技能"或"demo skill"时使用。
+---
+
 # Demo Skill
 
 这是一个示例技能，展示 pi skill 的基本结构。

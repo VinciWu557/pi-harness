@@ -5,11 +5,20 @@
 ## 安装
 
 ```bash
-# 开发时（本地引用）
-pi install ./path/to/pi-harness
+# 从 npm 安装（推荐）
+pi install npm:pi-harness
+
+# 锁定版本
+pi install npm:pi-harness@0.1.0
+
+# 试用（不持久化到 settings.json）
+pi -e npm:pi-harness
 
 # 从 GitHub 安装
-pi install git:github.com/你的用户名/pi-harness
+pi install git:github.com/VinciWu557/pi-harness
+
+# 开发时（本地引用）
+pi install ./path/to/pi-harness
 ```
 
 ## 结构
@@ -47,3 +56,21 @@ pi install ./path/to/pi-harness
 | 技能 | 说明 |
 |------|------|
 | `demo-skill` | 示例技能 |
+
+## 发布到 npm
+
+```bash
+# 1. 登录 npm（首次）
+npm login
+
+# 2. 修改版本号
+npm version patch   # 0.1.0 -> 0.1.1
+npm version minor   # 0.1.0 -> 0.2.0
+npm version major   # 0.1.0 -> 1.0.0
+
+# 3. 发布
+npm publish
+
+# 4. 安装使用
+pi install npm:pi-harness
+```
