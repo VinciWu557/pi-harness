@@ -10,7 +10,7 @@
     "prompts": ["./prompts"],
     "themes": ["./themes"]
   },
-  "peerDependencies": {
+  "devDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-ai": "*",
     "typebox": "*"
