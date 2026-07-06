@@ -6,8 +6,8 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, matchesKey, Text } from "@earendil-works/pi-tui";
+import { DynamicBorder, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { Container, type SettingItem, SettingsList, Text } from "@earendil-works/pi-tui";
 import config from "./polish.json" with { type: "json" };
 import { createMessage, type MessageConfig } from "./messages.js";
 import { createIndicator, type IndicatorConfig } from "./indicators.js";
@@ -171,163 +171,60 @@ function getIndicatorPreview(preset: string): string {
 	return previews[preset] ?? "?";
 }
 
-/**
- * Single-screen preset selector: shows message and indicator options
- * side by side. Use TAB to switch columns, ↑↓ to select, Enter to confirm.
- */
 async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Promise<void> {
-	const msgStartIdx = Math.max(
-		0,
-		MESSAGE_PRESETS.indexOf(currentConfig.message.preset as (typeof MESSAGE_PRESETS)[number]),
-	);
-	const indStartIdx = Math.max(
-		0,
-		INDICATOR_PRESETS.indexOf(
-			currentConfig.indicator.preset as (typeof INDICATOR_PRESETS)[number],
-		),
-	);
-
-	const COL_WIDTH = 22;
-
-	// padEnd based on visible length, ignoring ANSI escape sequences
-	const padEndVisible = (s: string, width: number) => {
-		const esc = String.fromCharCode(27);
-		const visible = s.replace(new RegExp(esc + "\\[[\\d;]*m", "g"), "").length;
-		return s + " ".repeat(Math.max(0, width - visible));
-	};
-
-	const result = await ctx.ui.custom<{ message: string; indicator: string } | null>(
-		(tui, theme, _kb, done) => {
-			let activeColumn: "message" | "indicator" = "indicator";
-			let msgIdx = msgStartIdx;
-			let indIdx = indStartIdx;
-
-			const container = new Container();
-
-			const rebuild = () => {
-				container.clear();
-				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-
-				// Title
-				container.addChild(new Text(theme.fg("accent", theme.bold("预设配置")), 1, 0));
-
-				// Preview line — updates in real time as both selections change
-				const msgPreview = getMessagePreview(MESSAGE_PRESETS[msgIdx]!);
-				const indPreview = getIndicatorPreview(INDICATOR_PRESETS[indIdx]!);
-				container.addChild(
-					new Text(theme.fg("dim", `预览: ${indPreview}  ${msgPreview}`), 1, 0),
-				);
-				container.addChild(new Text("", 1, 0));
-
-				// Column headers — highlight the active column
-				const indHeader =
-					activeColumn === "indicator"
-						? theme.fg("accent", theme.bold("指示器预设"))
-						: "指示器预设";
-				const msgHeader =
-					activeColumn === "message"
-						? theme.fg("accent", theme.bold("消息预设"))
-						: "消息预设";
-				container.addChild(
-					new Text(`${padEndVisible(indHeader, COL_WIDTH)}${msgHeader}`, 1, 0),
-				);
-
-				// Options — two columns rendered side by side
-				const maxRows = Math.max(INDICATOR_PRESETS.length, MESSAGE_PRESETS.length);
-				for (let i = 0; i < maxRows; i++) {
-					let left = "";
-					if (i < INDICATOR_PRESETS.length) {
-						const opt = INDICATOR_PRESETS[i]!;
-						if (i === indIdx && activeColumn === "indicator") {
-							left = theme.fg("accent", `→ ${opt}`);
-						} else if (i === indIdx) {
-							left = `· ${opt}`;
-						} else {
-							left = `  ${opt}`;
-						}
-					}
-
-					let right = "";
-					if (i < MESSAGE_PRESETS.length) {
-						const opt = MESSAGE_PRESETS[i]!;
-						if (i === msgIdx && activeColumn === "message") {
-							right = theme.fg("accent", `→ ${opt}`);
-						} else if (i === msgIdx) {
-							right = `· ${opt}`;
-						} else {
-							right = `  ${opt}`;
-						}
-					}
-
-					container.addChild(new Text(`${padEndVisible(left, COL_WIDTH)}${right}`, 1, 0));
-				}
-
-				// Footer
-				container.addChild(
-					new Text(theme.fg("dim", "TAB 切换列 • ↑↓ 选择 • Enter 确认 • Esc 返回"), 1, 0),
-				);
-
-				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-			};
-
-			rebuild();
-
-			return {
-				render: (w: number) => container.render(w),
-				invalidate: () => {
-					container.invalidate();
-					rebuild();
-				},
-				handleInput: (data: string) => {
-					if (matchesKey(data, "tab")) {
-						activeColumn = activeColumn === "message" ? "indicator" : "message";
-						rebuild();
-						tui.requestRender();
-						return;
-					}
-					if (matchesKey(data, "up") || matchesKey(data, "k")) {
-						if (activeColumn === "message") {
-							msgIdx = Math.max(0, msgIdx - 1);
-						} else {
-							indIdx = Math.max(0, indIdx - 1);
-						}
-						rebuild();
-						tui.requestRender();
-						return;
-					}
-					if (matchesKey(data, "down") || matchesKey(data, "j")) {
-						if (activeColumn === "message") {
-							msgIdx = Math.min(MESSAGE_PRESETS.length - 1, msgIdx + 1);
-						} else {
-							indIdx = Math.min(INDICATOR_PRESETS.length - 1, indIdx + 1);
-						}
-						rebuild();
-						tui.requestRender();
-						return;
-					}
-					if (matchesKey(data, "enter")) {
-						const msg = MESSAGE_PRESETS[msgIdx];
-						const ind = INDICATOR_PRESETS[indIdx];
-						if (!msg || !ind) return;
-						done({ message: msg, indicator: ind });
-						return;
-					}
-					if (matchesKey(data, "escape")) {
-						done(null);
-						return;
-					}
-				},
-			};
+	const items: SettingItem[] = [
+		{
+			id: "indicator",
+			label: "指示器预设",
+			description: getIndicatorPreview(currentConfig.indicator.preset),
+			currentValue: currentConfig.indicator.preset,
+			values: [...INDICATOR_PRESETS],
 		},
-	);
+		{
+			id: "message",
+			label: "消息预设",
+			description: getMessagePreview(currentConfig.message.preset),
+			currentValue: currentConfig.message.preset,
+			values: [...MESSAGE_PRESETS],
+		},
+	];
 
-	if (result == null) return;
+	await ctx.ui.custom((_tui, theme, _kb, done) => {
+		const container = new Container();
+		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+		container.addChild(new Text(theme.fg("accent", theme.bold("预设配置")), 1, 0));
 
-	currentConfig.message.preset = result.message as MessageConfig["preset"];
-	currentConfig.indicator.preset = result.indicator as IndicatorConfig["preset"];
-	saveConfig();
-	applyConfig(ctx);
-	ctx.ui.notify(`预设配置已更新: 消息=${result.message}  指示器=${result.indicator}`, "info");
+		const settingsList = new SettingsList(
+			items,
+			items.length + 2,
+			getSettingsListTheme(),
+			(id: string, newValue: string) => {
+				if (id === "indicator") {
+					currentConfig.indicator.preset = newValue as IndicatorConfig["preset"];
+					const item = items.find((i) => i.id === "indicator")!;
+					item.description = getIndicatorPreview(newValue);
+				} else if (id === "message") {
+					currentConfig.message.preset = newValue as MessageConfig["preset"];
+					const item = items.find((i) => i.id === "message")!;
+					item.description = getMessagePreview(newValue);
+				}
+				saveConfig();
+				applyConfig(ctx);
+			},
+			() => done(undefined),
+		);
+		container.addChild(settingsList);
+		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+		return {
+			render: (w: number) => container.render(w),
+			invalidate: () => container.invalidate(),
+			handleInput: (data: string) => {
+				settingsList.handleInput(data);
+				_tui.requestRender();
+			},
+		};
+	});
 }
 
 // ── Combined set command (message + indicator + verbs in one call) ────────
