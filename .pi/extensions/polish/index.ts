@@ -30,7 +30,15 @@ const DEFAULT_CONFIG: PolishConfig = {
 };
 
 const MESSAGE_PRESETS = ["default", "playful", "professional", "custom", "minimal"] as const;
-const INDICATOR_PRESETS = ["default", "wave", "spinner", "rainbow", "dot", "pulse", "none"] as const;
+const INDICATOR_PRESETS = [
+	"default",
+	"wave",
+	"spinner",
+	"rainbow",
+	"dot",
+	"pulse",
+	"none",
+] as const;
 
 // ── Mutable config state ──────────────────────────────────────────────────
 
@@ -73,6 +81,9 @@ async function handlePolishCommand(args: string, ctx: ExtensionCommandContext): 
 		case "indicator":
 			await setIndicatorPreset(parts.slice(1).join(" "), ctx);
 			break;
+		case "set":
+			await handleSetCommand(parts.slice(1).join(" "), ctx);
+			break;
 		case "verbs":
 			await setCustomVerbs(parts.slice(1).join(" "), ctx);
 			break;
@@ -105,7 +116,7 @@ async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 
 		switch (choice) {
 			case "预设配置":
-				await interactiveCombinedPreset(ctx);
+				await interactiveSimultaneousPreset(ctx);
 				break;
 			case "自定义动词":
 				await interactiveCustomVerbs(ctx);
@@ -119,27 +130,6 @@ async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 		}
 	}
 }
-
-async function interactiveMessagePreset(ctx: ExtensionCommandContext): Promise<void> {
-	const preset = await ctx.ui.select("选择消息预设", [...MESSAGE_PRESETS]);
-	if (preset === undefined) return;
-
-	currentConfig.message.preset = preset as MessageConfig["preset"];
-	saveConfig();
-	applyConfig(ctx);
-	ctx.ui.notify(`消息预设已设置为: ${preset}`, "info");
-}
-
-async function interactiveIndicatorPreset(ctx: ExtensionCommandContext): Promise<void> {
-	const preset = await ctx.ui.select("选择指示器预设", [...INDICATOR_PRESETS]);
-	if (preset === undefined) return;
-
-	currentConfig.indicator.preset = preset as IndicatorConfig["preset"];
-	saveConfig();
-	applyConfig(ctx);
-	ctx.ui.notify(`指示器预设已设置为: ${preset}`, "info");
-}
-
 async function interactiveCustomVerbs(ctx: ExtensionCommandContext): Promise<void> {
 	const current = currentConfig.message.customVerbs?.join(", ") ?? "";
 	const input = await ctx.ui.input("输入自定义动词（逗号分隔）", current);
@@ -155,11 +145,14 @@ async function interactiveCustomVerbs(ctx: ExtensionCommandContext): Promise<voi
 	ctx.ui.notify(`自定义动词已设置为: ${verbs.join(", ") || "（空）"}`, "info");
 }
 
-// ── Combined preset selector (message + indicator with preview) ──────────
+// ── Simultaneous preset selector (message + indicator on one screen) ─────
 
 /** Generate preview text for a message preset. */
 function getMessagePreview(preset: string): string {
-	const tempConfig: MessageConfig = { ...currentConfig.message, preset: preset as MessageConfig["preset"] };
+	const tempConfig: MessageConfig = {
+		...currentConfig.message,
+		preset: preset as MessageConfig["preset"],
+	};
 	const msg = createMessage(tempConfig);
 	return msg ?? "(默认)";
 }
@@ -179,133 +172,234 @@ function getIndicatorPreview(preset: string): string {
 }
 
 /**
- * Show a custom selection list with a live preview line.
- * User presses ↑/↓ to navigate, preview updates in real time,
- * Enter to confirm, Esc to cancel.
- * Returns the selected value or null if cancelled.
+ * Single-screen preset selector: shows message and indicator options
+ * side by side. Use TAB to switch columns, ↑↓ to select, Enter to confirm.
  */
-async function selectWithPreview(
-	ctx: ExtensionCommandContext,
-	title: string,
-	options: readonly string[],
-	currentValue: string,
-	getPreview: (value: string) => string,
-): Promise<string | null> {
-	const startIdx = Math.max(0, options.indexOf(currentValue));
+async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Promise<void> {
+	const msgStartIdx = Math.max(
+		0,
+		MESSAGE_PRESETS.indexOf(currentConfig.message.preset as (typeof MESSAGE_PRESETS)[number]),
+	);
+	const indStartIdx = Math.max(
+		0,
+		INDICATOR_PRESETS.indexOf(
+			currentConfig.indicator.preset as (typeof INDICATOR_PRESETS)[number],
+		),
+	);
 
-	return ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-		let highlightedIndex = startIdx;
-		const container = new Container();
+	const COL_WIDTH = 22;
 
-		const rebuild = () => {
-			container.clear();
-			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+	// padEnd based on visible length, ignoring ANSI escape sequences
+	const padEndVisible = (s: string, width: number) => {
+		const esc = String.fromCharCode(27);
+		const visible = s.replace(new RegExp(esc + "\\[[\\d;]*m", "g"), "").length;
+		return s + " ".repeat(Math.max(0, width - visible));
+	};
 
-			// Title
-			container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
+	const result = await ctx.ui.custom<{ message: string; indicator: string } | null>(
+		(tui, theme, _kb, done) => {
+			let activeColumn: "message" | "indicator" = "indicator";
+			let msgIdx = msgStartIdx;
+			let indIdx = indStartIdx;
 
-			// Preview line — reflects the currently highlighted option
-			const currentOpt = options[highlightedIndex]!;
-			container.addChild(new Text(theme.fg("dim", `预览: ${getPreview(currentOpt)}`), 1, 0));
+			const container = new Container();
 
-			// Render all options
-			for (let i = 0; i < options.length; i++) {
-				const opt = options[i]!;
-				const isHighlighted = i === highlightedIndex;
+			const rebuild = () => {
+				container.clear();
+				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+				// Title
+				container.addChild(new Text(theme.fg("accent", theme.bold("预设配置")), 1, 0));
+
+				// Preview line — updates in real time as both selections change
+				const msgPreview = getMessagePreview(MESSAGE_PRESETS[msgIdx]!);
+				const indPreview = getIndicatorPreview(INDICATOR_PRESETS[indIdx]!);
 				container.addChild(
-					new Text(
-						isHighlighted
-							? theme.fg("accent", `→ ${opt}`)
-							: ` ${opt}`,
-						1,
-						0,
-					),
+					new Text(theme.fg("dim", `预览: ${indPreview}  ${msgPreview}`), 1, 0),
 				);
-			}
+				container.addChild(new Text("", 1, 0));
 
-			// Footer hint
-			container.addChild(new Text(theme.fg("dim", "↑↓ 导航 • Enter 选择 • Esc 返回"), 1, 0));
+				// Column headers — highlight the active column
+				const indHeader =
+					activeColumn === "indicator"
+						? theme.fg("accent", theme.bold("指示器预设"))
+						: "指示器预设";
+				const msgHeader =
+					activeColumn === "message"
+						? theme.fg("accent", theme.bold("消息预设"))
+						: "消息预设";
+				container.addChild(
+					new Text(`${padEndVisible(indHeader, COL_WIDTH)}${msgHeader}`, 1, 0),
+				);
 
-			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-		};
+				// Options — two columns rendered side by side
+				const maxRows = Math.max(INDICATOR_PRESETS.length, MESSAGE_PRESETS.length);
+				for (let i = 0; i < maxRows; i++) {
+					let left = "";
+					if (i < INDICATOR_PRESETS.length) {
+						const opt = INDICATOR_PRESETS[i]!;
+						if (i === indIdx && activeColumn === "indicator") {
+							left = theme.fg("accent", `→ ${opt}`);
+						} else if (i === indIdx) {
+							left = `· ${opt}`;
+						} else {
+							left = `  ${opt}`;
+						}
+					}
 
-		rebuild();
+					let right = "";
+					if (i < MESSAGE_PRESETS.length) {
+						const opt = MESSAGE_PRESETS[i]!;
+						if (i === msgIdx && activeColumn === "message") {
+							right = theme.fg("accent", `→ ${opt}`);
+						} else if (i === msgIdx) {
+							right = `· ${opt}`;
+						} else {
+							right = `  ${opt}`;
+						}
+					}
 
-		return {
-			render: (w: number) => container.render(w),
-			invalidate: () => {
-				container.invalidate();
-				rebuild();
-			},
-			handleInput: (data: string) => {
-				if (matchesKey(data, "up") || matchesKey(data, "k")) {
-					highlightedIndex = Math.max(0, highlightedIndex - 1);
+					container.addChild(new Text(`${padEndVisible(left, COL_WIDTH)}${right}`, 1, 0));
+				}
+
+				// Footer
+				container.addChild(
+					new Text(theme.fg("dim", "TAB 切换列 • ↑↓ 选择 • Enter 确认 • Esc 返回"), 1, 0),
+				);
+
+				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+			};
+
+			rebuild();
+
+			return {
+				render: (w: number) => container.render(w),
+				invalidate: () => {
+					container.invalidate();
 					rebuild();
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "down") || matchesKey(data, "j")) {
-					highlightedIndex = Math.min(options.length - 1, highlightedIndex + 1);
-					rebuild();
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "enter")) {
-					done(options[highlightedIndex]!);
-					return;
-				}
-				if (matchesKey(data, "escape")) {
-					done(null);
-					return;
-				}
-			},
-		};
-	});
+				},
+				handleInput: (data: string) => {
+					if (matchesKey(data, "tab")) {
+						activeColumn = activeColumn === "message" ? "indicator" : "message";
+						rebuild();
+						tui.requestRender();
+						return;
+					}
+					if (matchesKey(data, "up") || matchesKey(data, "k")) {
+						if (activeColumn === "message") {
+							msgIdx = Math.max(0, msgIdx - 1);
+						} else {
+							indIdx = Math.max(0, indIdx - 1);
+						}
+						rebuild();
+						tui.requestRender();
+						return;
+					}
+					if (matchesKey(data, "down") || matchesKey(data, "j")) {
+						if (activeColumn === "message") {
+							msgIdx = Math.min(MESSAGE_PRESETS.length - 1, msgIdx + 1);
+						} else {
+							indIdx = Math.min(INDICATOR_PRESETS.length - 1, indIdx + 1);
+						}
+						rebuild();
+						tui.requestRender();
+						return;
+					}
+					if (matchesKey(data, "enter")) {
+						const msg = MESSAGE_PRESETS[msgIdx];
+						const ind = INDICATOR_PRESETS[indIdx];
+						if (!msg || !ind) return;
+						done({ message: msg, indicator: ind });
+						return;
+					}
+					if (matchesKey(data, "escape")) {
+						done(null);
+						return;
+					}
+				},
+			};
+		},
+	);
+
+	if (result == null) return;
+
+	currentConfig.message.preset = result.message as MessageConfig["preset"];
+	currentConfig.indicator.preset = result.indicator as IndicatorConfig["preset"];
+	saveConfig();
+	applyConfig(ctx);
+	ctx.ui.notify(`预设配置已更新: 消息=${result.message}  指示器=${result.indicator}`, "info");
 }
 
-/**
- * Step-by-step wizard: first choose message preset, then indicator preset.
- * Each step shows a preview of what the current selection produces.
- */
-async function interactiveCombinedPreset(ctx: ExtensionCommandContext): Promise<void> {
-	// Step 1: Select message preset with preview
-	const messagePreset = await selectWithPreview(
-		ctx,
-		"📨 选择消息预设",
-		MESSAGE_PRESETS,
-		currentConfig.message.preset,
-		(preset) => getMessagePreview(preset),
-	);
-	if (messagePreset == null) return; // User cancelled
+// ── Combined set command (message + indicator + verbs in one call) ────────
 
-	// Apply message preset temporarily so step 2 preview shows the combined effect
-	const prevMessagePreset = currentConfig.message.preset;
-	currentConfig.message.preset = messagePreset as MessageConfig["preset"];
-	applyConfig(ctx);
+/** Parse "key=value" pairs from a space-separated argument string. */
+function parseKeyValuePairs(args: string): Record<string, string> {
+	const result: Record<string, string> = {};
+	const tokens = args.trim().split(/\s+/);
+	for (const token of tokens) {
+		const eqIdx = token.indexOf("=");
+		if (eqIdx === -1) continue;
+		const key = token.slice(0, eqIdx);
+		const value = token.slice(eqIdx + 1);
+		result[key] = value;
+	}
+	return result;
+}
 
-	// Step 2: Select indicator preset with combined preview
-	const indicatorPreset = await selectWithPreview(
-		ctx,
-		"🎯 选择指示器预设",
-		INDICATOR_PRESETS,
-		currentConfig.indicator.preset,
-		(preset) => `${getMessagePreview(messagePreset!)}  ${getIndicatorPreview(preset)}`,
-	);
+async function handleSetCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
+	const pairs = parseKeyValuePairs(args);
+	const keys = Object.keys(pairs);
 
-	if (indicatorPreset == null) {
-		// Revert message preset
-		currentConfig.message.preset = prevMessagePreset as MessageConfig["preset"];
-		applyConfig(ctx);
+	if (keys.length === 0) {
+		showConfig(ctx);
+		ctx.ui.notify(
+			"用法: /polish set message=<preset> indicator=<preset> [verbs=<verbs>]\n" +
+				`消息预设: ${MESSAGE_PRESETS.join(", ")}\n` +
+				`指示器预设: ${INDICATOR_PRESETS.join(", ")}`,
+			"warning",
+		);
 		return;
 	}
 
-	currentConfig.indicator.preset = indicatorPreset as IndicatorConfig["preset"];
-	saveConfig();
-	applyConfig(ctx);
-	ctx.ui.notify(
-		`预设配置已更新: 消息=${currentConfig.message.preset}  指示器=${currentConfig.indicator.preset}`,
-		"info",
-	);
+	const updates: string[] = [];
+
+	if ("message" in pairs) {
+		const val = pairs.message!;
+		if (!MESSAGE_PRESETS.includes(val as (typeof MESSAGE_PRESETS)[number])) {
+			ctx.ui.notify(`无效的消息预设: ${val}\n可选: ${MESSAGE_PRESETS.join(", ")}`, "error");
+			return;
+		}
+		currentConfig.message.preset = val as MessageConfig["preset"];
+		updates.push(`消息: ${val}`);
+	}
+
+	if ("indicator" in pairs) {
+		const val = pairs.indicator!;
+		if (!INDICATOR_PRESETS.includes(val as (typeof INDICATOR_PRESETS)[number])) {
+			ctx.ui.notify(
+				`无效的指示器预设: ${val}\n可选: ${INDICATOR_PRESETS.join(", ")}`,
+				"error",
+			);
+			return;
+		}
+		currentConfig.indicator.preset = val as IndicatorConfig["preset"];
+		updates.push(`指示器: ${val}`);
+	}
+
+	if ("verbs" in pairs) {
+		const verbs = pairs
+			.verbs!.split(",")
+			.map((v) => v.trim())
+			.filter((v) => v.length > 0);
+		currentConfig.message.customVerbs = verbs;
+		updates.push(`动词: ${verbs.join(", ") || "（空）"}`);
+	}
+
+	if (updates.length > 0) {
+		saveConfig();
+		applyConfig(ctx);
+		ctx.ui.notify(`配置已更新: ${updates.join("  ")}`, "info");
+	}
 }
 
 // ── Direct parameter mode ─────────────────────────────────────────────────
@@ -320,10 +414,7 @@ async function setMessagePreset(preset: string, ctx: ExtensionCommandContext): P
 	}
 
 	if (!MESSAGE_PRESETS.includes(preset as MessageConfig["preset"])) {
-		ctx.ui.notify(
-			`无效的消息预设: ${preset}\n可选: ${MESSAGE_PRESETS.join(", ")}`,
-			"error",
-		);
+		ctx.ui.notify(`无效的消息预设: ${preset}\n可选: ${MESSAGE_PRESETS.join(", ")}`, "error");
 		return;
 	}
 
@@ -397,6 +488,7 @@ function getArgumentCompletions(prefix: string) {
 	const subcommands = [
 		{ value: "message", label: "message", description: "设置消息预设" },
 		{ value: "indicator", label: "indicator", description: "设置指示器预设" },
+		{ value: "set", label: "set", description: "同时设置消息和指示器 (key=value)" },
 		{ value: "verbs", label: "verbs", description: "设置自定义动词" },
 		{ value: "show", label: "show", description: "查看当前配置" },
 		{ value: "reset", label: "reset", description: "重置为默认配置" },
@@ -430,7 +522,63 @@ function getArgumentCompletions(prefix: string) {
 		}));
 	}
 
+	// set 子命令的 key=value 补全
+	if (sub === "set" && parts.length <= 5) {
+		return getSetCompletions(parts, hasTrailingSpace);
+	}
+
 	return null;
+}
+
+function getSetCompletions(parts: string[], hasTrailingSpace: boolean) {
+	const typedArg = parts[parts.length - 1] ?? "";
+
+	// Collect already-used keys from earlier tokens
+	const usedKeys = new Set<string>();
+	for (let i = 1; i < parts.length - 1; i++) {
+		const eqIdx = parts[i]!.indexOf("=");
+		if (eqIdx !== -1) usedKeys.add(parts[i]!.slice(0, eqIdx));
+	}
+	if (!hasTrailingSpace) {
+		const eqIdx = typedArg.indexOf("=");
+		if (eqIdx !== -1 && eqIdx < typedArg.length - 1) {
+			usedKeys.add(typedArg.slice(0, eqIdx));
+		}
+	}
+
+	// If current arg contains "=" and user is typing a value
+	if (typedArg.includes("=")) {
+		const eqIdx = typedArg.indexOf("=");
+		const key = typedArg.slice(0, eqIdx);
+		const partialValue = typedArg.slice(eqIdx + 1);
+
+		if (key === "message") {
+			return MESSAGE_PRESETS.filter((p) => p.startsWith(partialValue)).map((p) => ({
+				value: p,
+				label: p,
+			}));
+		}
+		if (key === "indicator") {
+			return INDICATOR_PRESETS.filter((p) => p.startsWith(partialValue)).map((p) => ({
+				value: p,
+				label: p,
+			}));
+		}
+	}
+
+	// Suggest remaining keys
+	const availableKeys = [
+		{ key: "message=", label: "message=", description: "消息预设" },
+		{ key: "indicator=", label: "indicator=", description: "指示器预设" },
+		{ key: "verbs=", label: "verbs=", description: "自定义动词" },
+	].filter((k) => {
+		const keyName = k.key.slice(0, -1);
+		return !usedKeys.has(keyName);
+	});
+
+	return availableKeys
+		.filter((k) => k.key.startsWith(typedArg))
+		.map((k) => ({ value: k.key, label: k.label, description: k.description }));
 }
 
 // ── Extension entry ───────────────────────────────────────────────────────
