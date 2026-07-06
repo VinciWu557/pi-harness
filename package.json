@@ -21,7 +21,13 @@
 		"check:boundaries": "node ./scripts/check-extension-boundaries.mjs",
 		"typecheck": "npm --workspaces --if-present run typecheck",
 		"test": "vitest run",
-		"check": "npm run lint && npm run format:check && npm run check:boundaries && npm run typecheck && npm test"
+		"check": "npm run lint && npm run format:check && npm run check:boundaries && npm run typecheck && npm test",
+		"bump:patch": "gh workflow run bump-version.yml --repo VinciWu557/pi-harness -f version_bump=patch",
+		"bump:minor": "gh workflow run bump-version.yml --repo VinciWu557/pi-harness -f version_bump=minor",
+		"bump:major": "gh workflow run bump-version.yml --repo VinciWu557/pi-harness -f version_bump=major",
+		"publish:ci": "gh workflow run publish.yml --repo VinciWu557/pi-harness",
+		"release:ci": "gh workflow run release.yml --repo VinciWu557/pi-harness -f tag=v$(node -p \"require('./package.json').version\")",
+		"ci:status": "gh run list --repo VinciWu557/pi-harness --limit 5"
 	},
 	"devDependencies": {
 		"@earendil-works/pi-coding-agent": "0.80.3",
