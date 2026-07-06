@@ -35,3 +35,6 @@ coverage/
 
 # Cache
 .cache/
+
+# Plans (local planning docs)
+plans/

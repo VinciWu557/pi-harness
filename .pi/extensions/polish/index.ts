@@ -1,19 +1,20 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createWaveFrames } from "./wave.js";
-import { randomVerb } from "./spinningVerbs.js";
+import config from "./polish.json" with { type: "json" };
+import { createMessage, type MessageConfig } from "./messages.js";
+import { createIndicator, type IndicatorConfig } from "./indicators.js";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
-		const verb = randomVerb();
-		ctx.ui.setWorkingMessage(verb + "...");
+		// Apply working message preset
+		const message = createMessage(config.message as MessageConfig);
+		if (message !== undefined) {
+			ctx.ui.setWorkingMessage(message);
+		}
 
-		const frames = createWaveFrames().map((wave) =>
-			ctx.ui.theme.fg("accent", wave),
-		);
-
-		ctx.ui.setWorkingIndicator({
-			frames,
-			intervalMs: 120,
-		});
+		// Apply working indicator preset
+		const indicator = createIndicator(config.indicator as IndicatorConfig, ctx.ui.theme);
+		if (indicator !== undefined) {
+			ctx.ui.setWorkingIndicator(indicator);
+		}
 	});
 }
