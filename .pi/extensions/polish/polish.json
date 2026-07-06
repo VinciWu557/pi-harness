@@ -1,9 +1,9 @@
 {
 	"message": {
-		"preset": "playful",
+		"preset": "default",
 		"customVerbs": []
 	},
 	"indicator": {
-		"preset": "wave"
+		"preset": "default"
 	}
 }
