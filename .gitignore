@@ -1,3 +1,37 @@
+# Dependencies
 node_modules/
+
+# Build output
+dist/
+*.tgz
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS files
 .DS_Store
+.localized
+__MACOSX/
+.AppleDouble
+.LSOverride
+._*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test cache
+coverage/
+.nyc_output/
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# Editor directories
+.vscode/
+.idea/
+
+# Cache
+.cache/
