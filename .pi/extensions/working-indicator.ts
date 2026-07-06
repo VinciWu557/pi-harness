@@ -26,13 +26,16 @@ export default function (pi: ExtensionAPI) {
 			"假装深度思考中",
 			"忽悠中",
 		];
-
-		// 随机挑一句文案，所有帧共用
+		// 随机挑一句文案
 		const phrase = phrases[Math.floor(Math.random() * phrases.length)]!;
+
+		// 用随机文案替换默认的 "Working..."
+		ctx.ui.setWorkingMessage(phrase + "...");
+
 		ctx.ui.setWorkingIndicator({
 			frames: waves.map(
 				(wave) =>
-					ctx.ui.theme.fg("accent", wave + " " + phrase),
+					ctx.ui.theme.fg("accent", wave),
 			),
 			intervalMs: 120,
 		});
