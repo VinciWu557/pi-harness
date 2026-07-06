@@ -2,8 +2,24 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
-		// 块状渐层 + 随机摸鱼文案
-		const blocks = ["░", "▒", "▓", "█", "▓"];
+		const width = 8;
+		const tail = ["▓", "▒", "░"];
+
+		// 高亮块从左到右移动，留下 ░▒▓█ 渐变尾迹
+		const forward = Array.from({ length: width }, (_, pos) => {
+			let line = "";
+			for (let i = 0; i < width; i++) {
+				const dist = Math.abs(i - pos);
+				if (dist === 0) line += "█";
+				else if (dist <= tail.length) line += tail[dist - 1]!;
+				else line += "░";
+			}
+			return line;
+		});
+
+		// 从右到左返回，去掉首尾避免在两端重复停留
+		const backward = forward.slice(1, -1).reverse();
+		const waves = [...forward, ...backward];
 		const phrases = [
 			"发呆中",
 			"摸鱼中",
@@ -11,20 +27,12 @@ export default function (pi: ExtensionAPI) {
 			"忽悠中",
 		];
 
-		// 每个 block 随机配一个 phrase，打乱顺序，制造"随机"感
-		const pairs = blocks.flatMap((b) =>
-			phrases.map((p) => ({ block: b, phrase: p })),
-		);
-		// Fisher-Yates 洗牌
-		for (let i = pairs.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[pairs[i], pairs[j]] = [pairs[j]!, pairs[i]!];
-		}
-
+		// 随机挑一句文案，所有帧共用
+		const phrase = phrases[Math.floor(Math.random() * phrases.length)]!;
 		ctx.ui.setWorkingIndicator({
-			frames: pairs.map(
-				({ block, phrase }) =>
-					ctx.ui.theme.fg("accent", block + " " + phrase),
+			frames: waves.map(
+				(wave) =>
+					ctx.ui.theme.fg("accent", wave + " " + phrase),
 			),
 			intervalMs: 120,
 		});
