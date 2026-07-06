@@ -31,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
-          token: ${{ secrets.PAT_TOKEN }}
+          # GITHUB_TOKEN: 自动生成，无需手动设置。tag 不会自动触发 publish/release，需手动触发。
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
