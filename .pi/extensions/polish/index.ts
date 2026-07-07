@@ -65,7 +65,7 @@ function applyConfig(ctx: ExtensionContext): void {
 
 async function handlePolishCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
 	if (!ctx.hasUI) {
-		ctx.ui.notify("Polish 配置需要交互式 TUI 支持", "error");
+		ctx.ui.notify("Polish requires interactive TUI support", "error");
 		return;
 	}
 
@@ -96,7 +96,7 @@ async function handlePolishCommand(args: string, ctx: ExtensionCommandContext): 
 			break;
 		default:
 			ctx.ui.notify(
-				`未知子命令: ${subcommand}\n用法: /polish [message|indicator|verbs|show|reset]`,
+				`Unknown subcommand: ${subcommand}\nUsage: /polish [message|indicator|verbs|show|reset]`,
 				"warning",
 			);
 	}
@@ -106,10 +106,10 @@ async function handlePolishCommand(args: string, ctx: ExtensionCommandContext): 
 
 async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 	const items: SelectItem[] = [
-		{ value: "preset", label: "预设配置", description: "同时设置消息和指示器风格" },
-		{ value: "verbs", label: "自定义动词", description: "设置 custom 消息预设使用的动词列表" },
-		{ value: "show", label: "查看当前配置", description: "显示当前生效的所有设置" },
-		{ value: "reset", label: "重置为默认", description: "将所有配置恢复为初始值" },
+		{ value: "preset", label: "Presets", description: "Configure message and indicator style" },
+		{ value: "verbs", label: "Custom Verbs", description: "Set verb list for the custom message preset" },
+		{ value: "show", label: "Show Config", description: "Display current active settings" },
+		{ value: "reset", label: "Reset", description: "Restore all settings to defaults" },
 	];
 
 	while (true) {
@@ -118,7 +118,7 @@ async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 
 			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 			container.addChild(
-				new Text(theme.fg("accent", theme.bold(" Polish 配置")), 1, 0),
+				new Text(theme.fg("accent", theme.bold(" Polish Config")), 1, 0),
 			);
 
 			const selectList = new SelectList(items, Math.min(items.length + 1, 8), {
@@ -133,7 +133,7 @@ async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 			container.addChild(selectList);
 
 			container.addChild(
-				new Text(theme.fg("dim", "↑↓ 选择 • enter 确认 • esc 返回"), 1, 0),
+				new Text(theme.fg("dim", "↑↓ navigate • enter select • esc back"), 1, 0),
 			);
 			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
@@ -167,7 +167,7 @@ async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
 }
 async function interactiveCustomVerbs(ctx: ExtensionCommandContext): Promise<void> {
 	const current = currentConfig.message.customVerbs?.join(", ") ?? "";
-	const input = await ctx.ui.input("输入自定义动词（逗号分隔）", current);
+	const input = await ctx.ui.input("Enter custom verbs (comma-separated)", current);
 	if (input === undefined) return;
 
 	const verbs = input
@@ -177,7 +177,7 @@ async function interactiveCustomVerbs(ctx: ExtensionCommandContext): Promise<voi
 	currentConfig.message.customVerbs = verbs;
 	saveConfig();
 	applyConfig(ctx);
-	ctx.ui.notify(`自定义动词已设置为: ${verbs.join(", ") || "（空）"}`, "info");
+	ctx.ui.notify(`Custom verbs set to: ${verbs.join(", ") || "(empty)"}`, "info");
 }
 
 // ── Simultaneous preset selector (message + indicator on one screen) ─────
@@ -189,39 +189,39 @@ function getMessagePreview(preset: string): string {
 		preset: preset as MessageConfig["preset"],
 	};
 	const msg = createMessage(tempConfig);
-	return msg ?? "(默认)";
+	return msg ?? "(default)";
 }
 
 /** Get a representative indicator frame for a preset. */
 function getIndicatorPreview(preset: string): string {
 	const previews: Record<string, string> = {
-		default: "(默认)",
+		default: "(default)",
 		wave: "█▓▒░░░░░",
 		spinner: "▀ ▄",
 		rainbow: "┃┃┃┃┃┃",
 		dot: "⣿⢷⡇",
 		pulse: "─═━",
 		heartbeat: "▁▁▂▆▁▇▃▁",
-		none: "(无)",
+		none: "(none)",
 	};
 	return previews[preset] ?? "?";
 }
 
 async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Promise<void> {
-	// 快照当前配置，用于 Esc 时回滚
+	// Snapshot current config for rollback on Esc
 	const snapshot: PolishConfig = structuredClone(currentConfig);
 
 	const items: SettingItem[] = [
 		{
 			id: "indicator",
-			label: "指示器预设",
+			label: "Indicator Preset",
 			description: getIndicatorPreview(currentConfig.indicator.preset),
 			currentValue: currentConfig.indicator.preset,
 			values: [...INDICATOR_PRESETS],
 		},
 		{
 			id: "message",
-			label: "消息预设",
+			label: "Message Preset",
 			description: getMessagePreview(currentConfig.message.preset),
 			currentValue: currentConfig.message.preset,
 			values: [...MESSAGE_PRESETS],
@@ -231,7 +231,7 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 	const saved = await ctx.ui.custom<boolean>((_tui, theme, _kb, done) => {
 		const container = new Container();
 		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-		container.addChild(new Text(theme.fg("accent", theme.bold("预设配置")), 1, 0));
+		container.addChild(new Text(theme.fg("accent", theme.bold("Presets")), 1, 0));
 
 		const settingsList = new SettingsList(
 			items,
@@ -247,15 +247,15 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 					const item = items.find((i) => i.id === "message")!;
 					item.description = getMessagePreview(newValue);
 				}
-				// 实时预览（不落盘）
+				// Live preview (not persisted)
 				applyConfig(ctx);
 			},
-			() => done(false), // Esc = 不保存
+			() => done(false), // Esc = discard
 		);
 		container.addChild(settingsList);
 
 		container.addChild(
-			new Text(theme.fg("dim", "Ctrl+S 保存 • esc 取消"), 1, 0),
+			new Text(theme.fg("dim", "Ctrl+S save • esc cancel"), 1, 0),
 		);
 		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
@@ -264,7 +264,7 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 			invalidate: () => container.invalidate(),
 			handleInput: (data: string) => {
 				if (matchesKey(data, Key.ctrl("s"))) {
-					done(true); // Ctrl+S = 保存
+					done(true); // Ctrl+S = save
 					return;
 				}
 				settingsList.handleInput(data);
@@ -275,9 +275,9 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 
 	if (saved) {
 		saveConfig();
-		ctx.ui.notify("预设配置已保存", "info");
+		ctx.ui.notify("Preset config saved", "info");
 	} else {
-		// 回滚到快照
+		// Rollback to snapshot
 		currentConfig.indicator.preset = snapshot.indicator.preset;
 		currentConfig.message.preset = snapshot.message.preset;
 		applyConfig(ctx);
@@ -307,9 +307,9 @@ async function handleSetCommand(args: string, ctx: ExtensionCommandContext): Pro
 	if (keys.length === 0) {
 		showConfig(ctx);
 		ctx.ui.notify(
-			"用法: /polish set message=<preset> indicator=<preset> [verbs=<verbs>]\n" +
-				`消息预设: ${MESSAGE_PRESETS.join(", ")}\n` +
-				`指示器预设: ${INDICATOR_PRESETS.join(", ")}`,
+			"Usage: /polish set message=<preset> indicator=<preset> [verbs=<verbs>]\n" +
+				`Message presets: ${MESSAGE_PRESETS.join(", ")}\n` +
+				`Indicator presets: ${INDICATOR_PRESETS.join(", ")}`,
 			"warning",
 		);
 		return;
@@ -320,24 +320,24 @@ async function handleSetCommand(args: string, ctx: ExtensionCommandContext): Pro
 	if ("message" in pairs) {
 		const val = pairs.message!;
 		if (!MESSAGE_PRESETS.includes(val as (typeof MESSAGE_PRESETS)[number])) {
-			ctx.ui.notify(`无效的消息预设: ${val}\n可选: ${MESSAGE_PRESETS.join(", ")}`, "error");
+			ctx.ui.notify(`Invalid message preset: ${val}\nOptions: ${MESSAGE_PRESETS.join(", ")}`, "error");
 			return;
 		}
 		currentConfig.message.preset = val as MessageConfig["preset"];
-		updates.push(`消息: ${val}`);
+		updates.push(`message: ${val}`);
 	}
 
 	if ("indicator" in pairs) {
 		const val = pairs.indicator!;
 		if (!INDICATOR_PRESETS.includes(val as (typeof INDICATOR_PRESETS)[number])) {
 			ctx.ui.notify(
-				`无效的指示器预设: ${val}\n可选: ${INDICATOR_PRESETS.join(", ")}`,
+				`Invalid indicator preset: ${val}\nOptions: ${INDICATOR_PRESETS.join(", ")}`,
 				"error",
 			);
 			return;
 		}
 		currentConfig.indicator.preset = val as IndicatorConfig["preset"];
-		updates.push(`指示器: ${val}`);
+		updates.push(`indicator: ${val}`);
 	}
 
 	if ("verbs" in pairs) {
@@ -346,13 +346,13 @@ async function handleSetCommand(args: string, ctx: ExtensionCommandContext): Pro
 			.map((v) => v.trim())
 			.filter((v) => v.length > 0);
 		currentConfig.message.customVerbs = verbs;
-		updates.push(`动词: ${verbs.join(", ") || "（空）"}`);
+		updates.push(`verbs: ${verbs.join(", ") || "(empty)"}`);
 	}
 
 	if (updates.length > 0) {
 		saveConfig();
 		applyConfig(ctx);
-		ctx.ui.notify(`配置已更新: ${updates.join("  ")}`, "info");
+		ctx.ui.notify(`Config updated: ${updates.join("  ")}`, "info");
 	}
 }
 
@@ -361,27 +361,27 @@ async function handleSetCommand(args: string, ctx: ExtensionCommandContext): Pro
 async function setMessagePreset(preset: string, ctx: ExtensionCommandContext): Promise<void> {
 	if (!preset) {
 		ctx.ui.notify(
-			`用法: /polish message <preset>\n可选: ${MESSAGE_PRESETS.join(", ")}`,
+			`Usage: /polish message <preset>\nOptions: ${MESSAGE_PRESETS.join(", ")}`,
 			"warning",
 		);
 		return;
 	}
 
 	if (!MESSAGE_PRESETS.includes(preset as MessageConfig["preset"])) {
-		ctx.ui.notify(`无效的消息预设: ${preset}\n可选: ${MESSAGE_PRESETS.join(", ")}`, "error");
+		ctx.ui.notify(`Invalid message preset: ${preset}\nOptions: ${MESSAGE_PRESETS.join(", ")}`, "error");
 		return;
 	}
 
 	currentConfig.message.preset = preset as MessageConfig["preset"];
 	saveConfig();
 	applyConfig(ctx);
-	ctx.ui.notify(`消息预设已设置为: ${preset}`, "info");
+	ctx.ui.notify(`Message preset set to: ${preset}`, "info");
 }
 
 async function setIndicatorPreset(preset: string, ctx: ExtensionCommandContext): Promise<void> {
 	if (!preset) {
 		ctx.ui.notify(
-			`用法: /polish indicator <preset>\n可选: ${INDICATOR_PRESETS.join(", ")}`,
+			`Usage: /polish indicator <preset>\nOptions: ${INDICATOR_PRESETS.join(", ")}`,
 			"warning",
 		);
 		return;
@@ -389,7 +389,7 @@ async function setIndicatorPreset(preset: string, ctx: ExtensionCommandContext):
 
 	if (!INDICATOR_PRESETS.includes(preset as IndicatorConfig["preset"])) {
 		ctx.ui.notify(
-			`无效的指示器预设: ${preset}\n可选: ${INDICATOR_PRESETS.join(", ")}`,
+			`Invalid indicator preset: ${preset}\nOptions: ${INDICATOR_PRESETS.join(", ")}`,
 			"error",
 		);
 		return;
@@ -398,12 +398,12 @@ async function setIndicatorPreset(preset: string, ctx: ExtensionCommandContext):
 	currentConfig.indicator.preset = preset as IndicatorConfig["preset"];
 	saveConfig();
 	applyConfig(ctx);
-	ctx.ui.notify(`指示器预设已设置为: ${preset}`, "info");
+	ctx.ui.notify(`Indicator preset set to: ${preset}`, "info");
 }
 
 async function setCustomVerbs(verbsStr: string, ctx: ExtensionCommandContext): Promise<void> {
 	if (!verbsStr) {
-		ctx.ui.notify("用法: /polish verbs <verb1,verb2,...>", "warning");
+		ctx.ui.notify("Usage: /polish verbs <verb1,verb2,...>", "warning");
 		return;
 	}
 
@@ -414,38 +414,38 @@ async function setCustomVerbs(verbsStr: string, ctx: ExtensionCommandContext): P
 	currentConfig.message.customVerbs = verbs;
 	saveConfig();
 	applyConfig(ctx);
-	ctx.ui.notify(`自定义动词已设置为: ${verbs.join(", ") || "（空）"}`, "info");
+	ctx.ui.notify(`Custom verbs set to: ${verbs.join(", ") || "(empty)"}`, "info");
 }
 
 function showConfig(ctx: ExtensionCommandContext): void {
 	const lines = [
-		`消息预设: ${currentConfig.message.preset}`,
-		`自定义动词: ${currentConfig.message.customVerbs?.join(", ") || "（无）"}`,
-		`指示器预设: ${currentConfig.indicator.preset}`,
+		`Message preset: ${currentConfig.message.preset}`,
+		`Custom verbs: ${currentConfig.message.customVerbs?.join(", ") || "(none)"}`,
+		`Indicator preset: ${currentConfig.indicator.preset}`,
 	];
 	ctx.ui.notify(lines.join("\n"), "info");
 }
 
 async function resetConfig(ctx: ExtensionCommandContext): Promise<void> {
-	const ok = await ctx.ui.confirm("重置配置", "将所有配置重置为默认值，是否继续？");
+	const ok = await ctx.ui.confirm("Reset Config", "Reset all settings to defaults?");
 	if (!ok) return;
 
 	currentConfig = structuredClone(DEFAULT_CONFIG);
 	saveConfig();
 	applyConfig(ctx);
-	ctx.ui.notify("配置已重置为默认值", "info");
+	ctx.ui.notify("Config reset to defaults", "info");
 }
 
 // ── Argument completions ──────────────────────────────────────────────────
 
 function getArgumentCompletions(prefix: string) {
 	const subcommands = [
-		{ value: "message", label: "message", description: "设置消息预设" },
-		{ value: "indicator", label: "indicator", description: "设置指示器预设" },
-		{ value: "set", label: "set", description: "同时设置消息和指示器 (key=value)" },
-		{ value: "verbs", label: "verbs", description: "设置自定义动词" },
-		{ value: "show", label: "show", description: "查看当前配置" },
-		{ value: "reset", label: "reset", description: "重置为默认配置" },
+		{ value: "message", label: "message", description: "Set message preset" },
+		{ value: "indicator", label: "indicator", description: "Set indicator preset" },
+		{ value: "set", label: "set", description: "Set message and indicator at once (key=value)" },
+		{ value: "verbs", label: "verbs", description: "Set custom verbs" },
+		{ value: "show", label: "show", description: "Show current config" },
+		{ value: "reset", label: "reset", description: "Reset to defaults" },
 	];
 
 	const trimmed = prefix.trim();
@@ -476,7 +476,7 @@ function getArgumentCompletions(prefix: string) {
 		}));
 	}
 
-	// set 子命令的 key=value 补全
+	// set subcommand key=value completions
 	if (sub === "set" && parts.length <= 5) {
 		return getSetCompletions(parts, hasTrailingSpace);
 	}
@@ -522,9 +522,9 @@ function getSetCompletions(parts: string[], hasTrailingSpace: boolean) {
 
 	// Suggest remaining keys
 	const availableKeys = [
-		{ key: "message=", label: "message=", description: "消息预设" },
-		{ key: "indicator=", label: "indicator=", description: "指示器预设" },
-		{ key: "verbs=", label: "verbs=", description: "自定义动词" },
+		{ key: "message=", label: "message=", description: "Message preset" },
+		{ key: "indicator=", label: "indicator=", description: "Indicator preset" },
+		{ key: "verbs=", label: "verbs=", description: "Custom verbs" },
 	].filter((k) => {
 		const keyName = k.key.slice(0, -1);
 		return !usedKeys.has(keyName);
@@ -543,7 +543,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("polish", {
-		description: "配置 polish 工作消息和指示器预设",
+		description: "Configure polish working message and indicator presets",
 		handler: handlePolishCommand,
 		getArgumentCompletions,
 	});

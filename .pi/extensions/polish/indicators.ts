@@ -29,7 +29,7 @@ function createWaveFrames(): string[] {
 		return line;
 	});
 
-	// 从右到左折返，去掉首尾避免在两端重复停留
+	// Reverse (skip first/last to avoid lingering at edges)
 	const backward = forward.slice(1, -1).reverse();
 	return [...forward, ...backward];
 }
@@ -83,14 +83,14 @@ const HEARTBEAT_PULSE = ["▂", "▆", "▁", "▇", "▃"];
 const HEARTBEAT_FLAT = "▁";
 
 function createHeartbeatFrames(): string[] {
-	// 构建完整序列：平线 + 心跳脉冲 + 平线
+	// Build full sequence: flat + heartbeat pulse + flat
 	const seq = [
 		...Array<string>(HEARTBEAT_WIDTH).fill(HEARTBEAT_FLAT),
 		...HEARTBEAT_PULSE,
 		...Array<string>(HEARTBEAT_WIDTH).fill(HEARTBEAT_FLAT),
 	];
 
-	// 滑动窗口取帧，去除连续重复的全平帧（保留 2 帧平线作为间歇）
+	// Sliding window frames, deduplicate consecutive flat frames (keep 2 as pause)
 	const allFrames: string[] = [];
 	for (let i = 0; i <= seq.length - HEARTBEAT_WIDTH; i++) {
 		allFrames.push(seq.slice(i, i + HEARTBEAT_WIDTH).join(""));
