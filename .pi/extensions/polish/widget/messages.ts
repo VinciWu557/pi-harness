@@ -1,8 +1,12 @@
 /**
- * Message presets for the polish extension.
+ * Message presets for the polish widget.
  *
  * Each preset produces a working message string shown during streaming.
  * The `createMessage` factory dispatches based on the config preset name.
+ *
+ * This is the text component of the streaming widget (shown above the editor
+ * while the agent is responding). See `widget/index.ts` for the combined
+ * widget abstraction.
  */
 
 /** Configuration for the message preset. */
@@ -10,6 +14,9 @@ export interface MessageConfig {
 	preset: "default" | "playful" | "professional" | "custom" | "minimal";
 	customVerbs?: string[];
 }
+
+/** All valid message preset names, in menu/completion order. */
+export const MESSAGE_PRESETS = ["default", "playful", "professional", "custom", "minimal"] as const;
 
 // ── Built-in verb libraries ──────────────────────────────────────────────
 

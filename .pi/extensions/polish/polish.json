@@ -1,9 +1,17 @@
 {
-	"message": {
-		"preset": "professional",
-		"customVerbs": []
+	"widget": {
+		"message": {
+			"preset": "playful",
+			"customVerbs": []
+		},
+		"indicator": {
+			"preset": "rainbow"
+		}
 	},
-	"indicator": {
-		"preset": "rainbow"
+	"footer": {
+		"preset": "default"
+	},
+	"status": {
+		"preset": "off"
 	}
 }

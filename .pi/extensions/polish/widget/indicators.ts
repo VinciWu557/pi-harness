@@ -1,8 +1,12 @@
 /**
- * Indicator presets for the polish extension.
+ * Indicator presets for the polish widget.
  *
  * Each preset produces a `WorkingIndicatorOptions` object (or `undefined`
  * for the "default" preset) that configures the streaming working indicator.
+ *
+ * This is the animation component of the streaming widget (shown above the
+ * editor while the agent is responding). See `widget/index.ts` for the
+ * combined widget abstraction.
  */
 
 import type { Theme, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
@@ -11,6 +15,18 @@ import type { Theme, WorkingIndicatorOptions } from "@earendil-works/pi-coding-a
 export interface IndicatorConfig {
 	preset: "default" | "wave" | "spinner" | "rainbow" | "dot" | "pulse" | "heartbeat" | "none";
 }
+
+/** All valid indicator preset names, in menu/completion order. */
+export const INDICATOR_PRESETS = [
+	"default",
+	"wave",
+	"spinner",
+	"rainbow",
+	"dot",
+	"pulse",
+	"heartbeat",
+	"none",
+] as const;
 
 // ── Wave animation (migrated from wave.ts) ───────────────────────────────
 
