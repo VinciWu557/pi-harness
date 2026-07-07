@@ -1,9 +1,9 @@
 {
 	"message": {
-		"preset": "playful",
+		"preset": "professional",
 		"customVerbs": []
 	},
 	"indicator": {
-		"preset": "wave"
+		"preset": "rainbow"
 	}
 }
