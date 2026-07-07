@@ -7,7 +7,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
-import { Container, type SettingItem, SettingsList, Text } from "@earendil-works/pi-tui";
+import { Container, Key, matchesKey, type SelectItem, SelectList, type SettingItem, SettingsList, Text } from "@earendil-works/pi-tui";
 import config from "./polish.json" with { type: "json" };
 import { createMessage, type MessageConfig } from "./messages.js";
 import { createIndicator, type IndicatorConfig } from "./indicators.js";
@@ -37,6 +37,7 @@ const INDICATOR_PRESETS = [
 	"rainbow",
 	"dot",
 	"pulse",
+	"heartbeat",
 	"none",
 ] as const;
 
@@ -104,27 +105,61 @@ async function handlePolishCommand(args: string, ctx: ExtensionCommandContext): 
 // ── Interactive menu ──────────────────────────────────────────────────────
 
 async function interactiveMenu(ctx: ExtensionCommandContext): Promise<void> {
-	while (true) {
-		const choice = await ctx.ui.select("Polish 配置", [
-			"预设配置",
-			"自定义动词",
-			"查看当前配置",
-			"重置为默认",
-		]);
+	const items: SelectItem[] = [
+		{ value: "preset", label: "预设配置", description: "同时设置消息和指示器风格" },
+		{ value: "verbs", label: "自定义动词", description: "设置 custom 消息预设使用的动词列表" },
+		{ value: "show", label: "查看当前配置", description: "显示当前生效的所有设置" },
+		{ value: "reset", label: "重置为默认", description: "将所有配置恢复为初始值" },
+	];
 
-		if (choice === undefined) break;
+	while (true) {
+		const choice = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
+			const container = new Container();
+
+			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+			container.addChild(
+				new Text(theme.fg("accent", theme.bold(" Polish 配置")), 1, 0),
+			);
+
+			const selectList = new SelectList(items, Math.min(items.length + 1, 8), {
+				selectedPrefix: (t: string) => theme.fg("accent", t),
+				selectedText: (t: string) => theme.fg("accent", t),
+				description: (t: string) => theme.fg("muted", t),
+				scrollInfo: (t: string) => theme.fg("dim", t),
+				noMatch: (t: string) => theme.fg("warning", t),
+			});
+			selectList.onSelect = (item: SelectItem) => done(item.value);
+			selectList.onCancel = () => done(null);
+			container.addChild(selectList);
+
+			container.addChild(
+				new Text(theme.fg("dim", "↑↓ 选择 • enter 确认 • esc 返回"), 1, 0),
+			);
+			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+			return {
+				render: (w: number) => container.render(w),
+				invalidate: () => container.invalidate(),
+				handleInput: (data: string) => {
+					selectList.handleInput(data);
+					tui.requestRender();
+				},
+			};
+		});
+
+		if (choice === null) break;
 
 		switch (choice) {
-			case "预设配置":
+			case "preset":
 				await interactiveSimultaneousPreset(ctx);
 				break;
-			case "自定义动词":
+			case "verbs":
 				await interactiveCustomVerbs(ctx);
 				break;
-			case "查看当前配置":
+			case "show":
 				showConfig(ctx);
 				break;
-			case "重置为默认":
+			case "reset":
 				await resetConfig(ctx);
 				break;
 		}
@@ -162,16 +197,20 @@ function getIndicatorPreview(preset: string): string {
 	const previews: Record<string, string> = {
 		default: "(默认)",
 		wave: "█▓▒░░░░░",
-		spinner: "⠋",
-		rainbow: "⠋",
-		dot: "●",
-		pulse: "●",
+		spinner: "▀ ▄",
+		rainbow: "┃┃┃┃┃┃",
+		dot: "⣿⢷⡇",
+		pulse: "─═━",
+		heartbeat: "▁▁▂▆▁▇▃▁",
 		none: "(无)",
 	};
 	return previews[preset] ?? "?";
 }
 
 async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Promise<void> {
+	// 快照当前配置，用于 Esc 时回滚
+	const snapshot: PolishConfig = structuredClone(currentConfig);
+
 	const items: SettingItem[] = [
 		{
 			id: "indicator",
@@ -189,7 +228,7 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 		},
 	];
 
-	await ctx.ui.custom((_tui, theme, _kb, done) => {
+	const saved = await ctx.ui.custom<boolean>((_tui, theme, _kb, done) => {
 		const container = new Container();
 		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 		container.addChild(new Text(theme.fg("accent", theme.bold("预设配置")), 1, 0));
@@ -208,23 +247,41 @@ async function interactiveSimultaneousPreset(ctx: ExtensionCommandContext): Prom
 					const item = items.find((i) => i.id === "message")!;
 					item.description = getMessagePreview(newValue);
 				}
-				saveConfig();
+				// 实时预览（不落盘）
 				applyConfig(ctx);
 			},
-			() => done(undefined),
+			() => done(false), // Esc = 不保存
 		);
 		container.addChild(settingsList);
+
+		container.addChild(
+			new Text(theme.fg("dim", "Ctrl+S 保存 • esc 取消"), 1, 0),
+		);
 		container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
 		return {
 			render: (w: number) => container.render(w),
 			invalidate: () => container.invalidate(),
 			handleInput: (data: string) => {
+				if (matchesKey(data, Key.ctrl("s"))) {
+					done(true); // Ctrl+S = 保存
+					return;
+				}
 				settingsList.handleInput(data);
 				_tui.requestRender();
 			},
 		};
 	});
+
+	if (saved) {
+		saveConfig();
+		ctx.ui.notify("预设配置已保存", "info");
+	} else {
+		// 回滚到快照
+		currentConfig.indicator.preset = snapshot.indicator.preset;
+		currentConfig.message.preset = snapshot.message.preset;
+		applyConfig(ctx);
+	}
 }
 
 // ── Combined set command (message + indicator + verbs in one call) ────────

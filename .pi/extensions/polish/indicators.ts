@@ -9,7 +9,7 @@ import type { Theme, WorkingIndicatorOptions } from "@earendil-works/pi-coding-a
 
 /** Configuration for the indicator preset. */
 export interface IndicatorConfig {
-	preset: "default" | "wave" | "spinner" | "rainbow" | "dot" | "pulse" | "none";
+	preset: "default" | "wave" | "spinner" | "rainbow" | "dot" | "pulse" | "heartbeat" | "none";
 }
 
 // ── Wave animation (migrated from wave.ts) ───────────────────────────────
@@ -34,9 +34,13 @@ function createWaveFrames(): string[] {
 	return [...forward, ...backward];
 }
 
-// ── Braille spinner ──────────────────────────────────────────────────────
+// ── Bouncing bar (replaces spinner) ───────────────────────────────────────
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const BOUNCING_BAR_FRAMES = ["▀ ", " ▀", " ▄", "▄ ", "▀ ", " ▀", " ▄", "▄ "];
+
+// ── Rainbow bar ──────────────────────────────────────────────────────────
+
+const RAINBOW_BAR = "┃┃┃┃┃┃";
 
 // ── Pastel rainbow colors ────────────────────────────────────────────────
 
@@ -54,6 +58,61 @@ function colorize(text: string, color: string): string {
 	return `${color}${text}${RESET_FG}`;
 }
 
+/** Create rainbow bar frames by rotating color offset across the bar characters. */
+function createRainbowBarFrames(): string[] {
+	const chars = [...RAINBOW_BAR];
+	return Array.from({ length: PASTEL_RAINBOW.length }, (_, offset) =>
+		chars
+			.map((ch, i) => colorize(ch, PASTEL_RAINBOW[(i + offset) % PASTEL_RAINBOW.length]!))
+			.join(""),
+	);
+}
+
+// ── Braille dots (flowing animation) ─────────────────────────────────────
+
+const BRAILLE_DOT_FRAMES = ["⣿", "⢷", "⡇", "⠇", "⡇", "⢷", "⣿"];
+
+// ── Breathe line (thickness pulsing) ─────────────────────────────────────
+
+const BREATHE_LINE_FRAMES = ["──", "══", "━━", "══", "──"];
+
+// ── Heartbeat / ECG (scrolling pulse) ───────────────────────────────────
+
+const HEARTBEAT_WIDTH = 8;
+const HEARTBEAT_PULSE = ["▂", "▆", "▁", "▇", "▃"];
+const HEARTBEAT_FLAT = "▁";
+
+function createHeartbeatFrames(): string[] {
+	// 构建完整序列：平线 + 心跳脉冲 + 平线
+	const seq = [
+		...Array<string>(HEARTBEAT_WIDTH).fill(HEARTBEAT_FLAT),
+		...HEARTBEAT_PULSE,
+		...Array<string>(HEARTBEAT_WIDTH).fill(HEARTBEAT_FLAT),
+	];
+
+	// 滑动窗口取帧，去除连续重复的全平帧（保留 2 帧平线作为间歇）
+	const allFrames: string[] = [];
+	for (let i = 0; i <= seq.length - HEARTBEAT_WIDTH; i++) {
+		allFrames.push(seq.slice(i, i + HEARTBEAT_WIDTH).join(""));
+	}
+
+	const flatFrame = HEARTBEAT_FLAT.repeat(HEARTBEAT_WIDTH);
+	const frames: string[] = [];
+	let flatCount = 0;
+
+	for (const frame of allFrames) {
+		if (frame === flatFrame) {
+			flatCount++;
+			if (flatCount <= 2) frames.push(frame);
+		} else {
+			flatCount = 0;
+			frames.push(frame);
+		}
+	}
+
+	return frames;
+}
+
 // ── Preset factories ─────────────────────────────────────────────────────
 
 type IndicatorFactory = (theme: Theme) => WorkingIndicatorOptions | undefined;
@@ -67,29 +126,28 @@ const factories: Record<IndicatorConfig["preset"], IndicatorFactory> = {
 	}),
 
 	spinner: (theme) => ({
-		frames: SPINNER_FRAMES.map((frame) => theme.fg("accent", frame)),
-		intervalMs: 80,
+		frames: BOUNCING_BAR_FRAMES.map((frame) => theme.fg("accent", frame)),
+		intervalMs: 100,
 	}),
 
 	rainbow: () => ({
-		frames: SPINNER_FRAMES.map((frame, index) =>
-			colorize(frame, PASTEL_RAINBOW[index % PASTEL_RAINBOW.length]!),
-		),
-		intervalMs: 80,
+		frames: createRainbowBarFrames(),
+		intervalMs: 120,
 	}),
 
 	dot: (theme) => ({
-		frames: [theme.fg("accent", "●")],
+		frames: BRAILLE_DOT_FRAMES.map((frame) => theme.fg("accent", frame)),
+		intervalMs: 100,
 	}),
 
 	pulse: (theme) => ({
-		frames: [
-			theme.fg("dim", "·"),
-			theme.fg("muted", "•"),
-			theme.fg("accent", "●"),
-			theme.fg("muted", "•"),
-		],
-		intervalMs: 120,
+		frames: BREATHE_LINE_FRAMES.map((frame) => theme.fg("accent", frame)),
+		intervalMs: 150,
+	}),
+
+	heartbeat: (theme) => ({
+		frames: createHeartbeatFrames().map((frame) => theme.fg("accent", frame)),
+		intervalMs: 100,
 	}),
 
 	none: () => ({
